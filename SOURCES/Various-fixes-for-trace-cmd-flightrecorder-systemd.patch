@@ -1,0 +1,170 @@
+From 1132270594314acb2eed250f1690d5b10d0fb47c Mon Sep 17 00:00:00 2001
+From: John Kacur <jkacur@redhat.com>
+Date: Tue, 30 Jun 2015 14:30:47 +0200
+Subject: [PATCH] Various fixes for trace-cmd flightrecorder - systemd files
+
+1) Allow systemctl enable trace-cmd.service to start trace-cmd.service automatically at system boot
+2) Don't stop trace-cmd.service at system shutdown
+3) Don't stop trace-cmd.service at each kernel module loading
+4) Start trace-cmd.service before any normal services
+1) Allow systemctl enable trace-cmd.service to start trace-cmd.service automatically at system boot
+
+I added [Install] section in trace-cmd.service. This is necessary to
+make trace-cmd.service automatically get started at system
+boot. Without the [Install] section, systemctl enable
+trace-cmd.service fails as below:
+
+  ~]# systemctl enable trace-cmd.service
+  The unit files have no [Install] section. They are not meant to be enabled
+  using systemctl.
+  Possible reasons for having this kind of units are:
+  1) A unit may be statically enabled by being symlinked from another unit's
+     .wants/ or .requires/ directory.
+  2) A unit's purpose may be to act as a helper for some other unit which has
+     a requirement dependency on it.
+  3) A unit may be started when needed via activation (socket, path, timer,
+     D-Bus, udev, scripted systemctl call, ...).
+
+WantedBy=multi-user.target in trace-cmd.service means that
+trace-cmd.service is started if multi-user.target, traditional
+runlevel 3, is active.
+
+2) Don't stop trace-cmd.service at system shutdown
+
+In the current configuration, trace-cmd reset is executed when
+trace-cmd.service is stopped at system shutdown. Then, trace buffer is
+cleared. This could become a problem if system crash happens at system
+shutdown. Even if we get a crash dump at the crash during system
+shutdown, the crash dump doesn't contain useful trace data.
+
+To fix the issue, it's necessary to make trace-cmd.service not stop at
+system shutdown.
+
+To achieve this, I added DefaultDependencies=no into trace-cmd.service.
+
+To understand this, first you need to understand how systemd achieves
+system shutdown. Look at the description of shutdown.target in man 7
+systemd.special.
+
+     shutdown.target
+         A special target unit that terminates the services on
+         system shutdown.
+
+         Services that shall be terminated on system shutdown
+         shall add Conflicts= dependencies to this unit for their
+         service unit, which is implicitly done when
+         DefaultDependencies=yes is set (the default).
+
+As this explains, systemd adds Conflicts=shutdown.target dependency to
+all the unit files by default. By this, if we shutdown system for
+example by systemctl poweroff, then all the currently active services
+with the default dependency get stopped when shutdown.target is pulled
+in.
+
+Thus, in order not to stop trace-cmd.service at system shutdown, it's
+necessary to remove the default Conflicts=shutdown.target
+dependency. This is achieved by DefaultDependencies=no.
+
+Also, we need to consider a default dependency around basic.target
+that is explained in man 7 systemd.special as follows:
+
+     basic.target
+         A special target unit covering basic boot-up.
+
+         systemd automatically adds dependencies of the types
+         Requires= and After= for this target unit to all
+         services (except for those with DefaultDependencies=no).
+
+         Usually this should pull-in all mount points, swap
+         devices, sockets, timers, and path units and other basic
+         initialization necessary for general purpose daemons.
+
+As this explains, Requires=basic.target is assigned to each service by
+default.
+
+Requires=basic.target means that the service tries to pull in the
+basic.target when it's pulled in and gets stopped if the basic.target
+gets stopped.
+
+This means that trace-cmd.service gets stopped at system shutdown via
+Requires=basic.target when basic.target is stopped.
+
+Thus, not to stop trace-cmd.service at system shutdown, it's necessary
+to remove the default Requires=basic.target dependency. This is again
+achieved by DefaultDependencies=no.
+
+3) Don't stop trace-cmd.service at each kernel module loading
+
+We have now udev configuration that restarts trace-cmd.service each
+time some kernel module is loaded. However, systemctl restart
+trace-cmd.service means that systemctl stop trace-cmd.service and then
+systemctl start trace-cmd.service. trace data gets lost when the
+systemctl stop trace-cmd.service is executed as I explained above.
+
+To fix the issue, we remove trace-cmd reset from ExecReload= in
+trace-cmd.service and use systemctl reload trace-cmd.service in the
+udev script instead of systemctl try-restart trace-cmd.service.
+
+Note that it's enough to trace-cmd start to enable trace events of
+newly loaded kernel modules.
+
+Also note that systemctl is-active trace-cmd.service in the udev
+script is needed to avoid executing systemctl reload trace-cmd.service
+when trace-cmd.service is inactive. Without systemctl is-active
+trace-cmd.service, systemctl reload trace-cmd.service is executed even
+when trace-cmd.service is inactive and then logs the following
+message:
+
+  Jun 12 20:24:25 localhost systemd: Unit trace-cmd.service cannot be reloaded because it is inactive.
+
+4) Start trace-cmd.service before any normal services
+
+trace-cmd.service needs to start early enough to collect useful kernel
+event information. It's too late if any of the normal services has
+started.
+
+To achieve this, DefaultDependencies=no is again needed to remove
+After=basic.target dependency assigned by default that is explained in
+man 7 systemd.special.
+
+Also, we need Before=basic.target to start trace-cmd.service *before*
+any normal services, i.e. any services with the default
+After=basic.target dependency.
+
+Signed-off-by: John Kacur <jkacur@redhat.com>
+---
+ 98-trace-cmd.rules | 2 +-
+ trace-cmd.service  | 7 ++++++-
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/98-trace-cmd.rules b/98-trace-cmd.rules
+index 7c073692a0ab..9575bd819a8e 100644
+--- a/98-trace-cmd.rules
++++ b/98-trace-cmd.rules
+@@ -1 +1 @@
+-SUBSYSTEM=="module", ACTION=="add", PROGRAM="/usr/bin/systemctl try-restart trace-cmd.service"
++SUBSYSTEM=="module", ACTION=="add", PROGRAM="/usr/bin/systemctl is-active trace-cmd.service", PROGRAM="/usr/bin/systemctl reload trace-cmd.service"
+diff --git a/trace-cmd.service b/trace-cmd.service
+index 6439b490f8f4..a5cdd046ca0c 100644
+--- a/trace-cmd.service
++++ b/trace-cmd.service
+@@ -1,5 +1,7 @@
+ [Unit]
+ Description=trace-cmd Flightrecorder
++DefaultDependencies=no
++Before=basic.target
+ 
+ [Service]
+ Type=oneshot
+@@ -7,4 +9,7 @@ RemainAfterExit=yes
+ EnvironmentFile=/etc/sysconfig/trace-cmd.conf
+ ExecStart=/usr/bin/trace-cmd start $OPTS
+ ExecStop=/usr/bin/trace-cmd reset
+-ExecReload=/usr/bin/trace-cmd reset; /usr/bin/trace-cmd start $OPTS
++ExecReload=/usr/bin/trace-cmd start $OPTS
++
++[Install]
++WantedBy=multi-user.target
+-- 
+1.8.3.1
+

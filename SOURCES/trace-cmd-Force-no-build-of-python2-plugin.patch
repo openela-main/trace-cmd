@@ -1,0 +1,35 @@
+From 34762bbe9ecd4913bd4a8d04a3ef24cfac6c3d54 Mon Sep 17 00:00:00 2001
+From: John Kacur <jkacur@redhat.com>
+Date: Mon, 11 Jun 2018 14:41:22 +0200
+Subject: [PATCH] trace-cmd: Force no build of python2 plugin
+
+Force no build of python2 plugin
+
+Signed-off-by: John Kacur <jkacur@redhat.com>
+---
+ Makefile | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index a5d2c384415b..62c469393a76 100644
+--- a/Makefile
++++ b/Makefile
+@@ -92,11 +92,12 @@ ifndef VERBOSE
+   VERBOSE = 0
+ endif
+ 
+-SWIG_DEFINED := $(shell if swig -help &> /dev/null; then echo 1; else echo 0; fi)
+-ifeq ($(SWIG_DEFINED), 0)
++# SWIG_DEFINED := $(shell if swig -help &> /dev/null; then echo 1; else echo 0; fi)
++# Don't build python2 plugin
++#ifeq ($(SWIG_DEFINED), 0)
+ BUILD_PYTHON := report_noswig
+ NO_PYTHON = 1
+-endif
++#endif
+ 
+ ifndef NO_PYTHON
+ PYTHON		:= ctracecmd.so
+-- 
+2.14.4
+

@@ -1,0 +1,53 @@
+From a57b906f58c8d293a1a353dbc5dabea237875759 Mon Sep 17 00:00:00 2001
+From: John Kacur <jkacur@redhat.com>
+Date: Thu, 4 Jun 2015 21:02:13 +0200
+Subject: [PATCH] Add trace-cmd flightrecorder service
+
+Make it possible to start and stop trace-cmd commands at start-up time.
+
+Signed-off-by: John Kacur <jkacur@redhat.com>
+---
+ 98-trace-cmd.rules |  1 +
+ trace-cmd.conf     |  4 ++++
+ trace-cmd.service  | 10 ++++++++++
+ 3 files changed, 15 insertions(+)
+ create mode 100644 98-trace-cmd.rules
+ create mode 100644 trace-cmd.conf
+ create mode 100644 trace-cmd.service
+
+diff --git a/98-trace-cmd.rules b/98-trace-cmd.rules
+new file mode 100644
+index 000000000000..7c073692a0ab
+--- /dev/null
++++ b/98-trace-cmd.rules
+@@ -0,0 +1 @@
++SUBSYSTEM=="module", ACTION=="add", PROGRAM="/usr/bin/systemctl try-restart trace-cmd.service"
+diff --git a/trace-cmd.conf b/trace-cmd.conf
+new file mode 100644
+index 000000000000..22896d961d64
+--- /dev/null
++++ b/trace-cmd.conf
+@@ -0,0 +1,4 @@
++# ftrace based flightrecorder configuration file.
++
++# trace-cmd options
++OPTS="-b 2048 -i -e block -e irq -e mce -e module -e power -e sched -e signal -e sys_enter -e sys_exit -e timer -e workqueue -e kvm -e net"
+diff --git a/trace-cmd.service b/trace-cmd.service
+new file mode 100644
+index 000000000000..6439b490f8f4
+--- /dev/null
++++ b/trace-cmd.service
+@@ -0,0 +1,10 @@
++[Unit]
++Description=trace-cmd Flightrecorder
++
++[Service]
++Type=oneshot
++RemainAfterExit=yes
++EnvironmentFile=/etc/sysconfig/trace-cmd.conf
++ExecStart=/usr/bin/trace-cmd start $OPTS
++ExecStop=/usr/bin/trace-cmd reset
++ExecReload=/usr/bin/trace-cmd reset; /usr/bin/trace-cmd start $OPTS
+-- 
+1.8.3.1
+

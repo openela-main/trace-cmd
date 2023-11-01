@@ -1,0 +1,33 @@
+From 7e8a6e3d03c0a6a7a5014ce488be1e16f99db006 Mon Sep 17 00:00:00 2001
+From: Zamir SUN <sztsian@gmail.com>
+Date: Sat, 11 Nov 2017 10:28:32 +0800
+Subject: [PATCH] trace-cmd: Figure out the arch and install library to the
+ right place
+
+Signed-off-by: Zamir SUN <sztsian@gmail.com>
+---
+ Makefile | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 5c35143..d10e547 100644
+--- a/Makefile
++++ b/Makefile
+@@ -47,7 +47,13 @@ html_install = $(prefix)/share/kernelshark/html
+ html_install_SQ = '$(subst ','\'',$(html_install))'
+ img_install = $(prefix)/share/kernelshark/html/images
+ img_install_SQ = '$(subst ','\'',$(img_install))'
+-libdir ?= $(prefix)/lib
++
++# figure out what arch we are on and install to the right place
++ARCH = $(shell getconf LONG_BIT)
++LIBDIR_32 = /lib
++LIBDIR_64 = /lib64
++
++libdir ?= $(prefix)/$(LIBDIR_$(ARCH))
+ libdir_SQ = '$(subst ','\'',$(libdir))'
+ includedir = $(prefix)/include/trace-cmd
+ includedir_SQ = '$(subst ','\'',$(includedir))'
+-- 
+2.13.4
+

@@ -1,0 +1,174 @@
+From b206acf0f4bb4a8aff22b14139b6d5fdcb110b77 Mon Sep 17 00:00:00 2001
+From: Nicolas Saenz Julienne <nsaenzju@redhat.com>
+Date: Wed, 2 Jun 2021 11:08:03 +0200
+Subject: [PATCH] trace-cmd: Add option to poll trace buffers
+
+Waiting for data to be available on the trace ring-buffers may trigger
+IPIs. This might generate unacceptable trace noise when debugging low
+latency or real time systems. So introduce the poll option. When
+enabled, it forces trace-cmd to use O_NONBLOCK. The drawback to using it
+is that traces will be extracted by busy waiting, which will
+unnecessarily hog the CPUs, so only use when really needed.
+
+Link: https://lore.kernel.org/linux-trace-devel/20210602090803.12233-1-nsaenzju@redhat.com
+
+Signed-off-by: Nicolas Saenz Julienne <nsaenzju@redhat.com>
+Signed-off-by: Steven Rostedt (VMware) <rostedt@goodmis.org>
+---
+ Documentation/trace-cmd-record.1.txt |  7 +++++++
+ trace-cmd.h                          |  4 +++-
+ trace-record.c                       |  9 ++++++++-
+ trace-recorder.c                     | 29 +++++++++++++++-------------
+ trace-usage.c                        |  1 +
+ 5 files changed, 35 insertions(+), 15 deletions(-)
+
+diff --git a/Documentation/trace-cmd-record.1.txt b/Documentation/trace-cmd-record.1.txt
+index 26a8299c..2b3ce636 100644
+--- a/Documentation/trace-cmd-record.1.txt
++++ b/Documentation/trace-cmd-record.1.txt
+@@ -331,6 +331,13 @@ OPTIONS
+     executed will not be changed. This is useful if you want to monitor the
+     output of the command being executed, but not see the output from trace-cmd.
+ 
++*--poll*::
++    Waiting for data to be available on the trace ring-buffers may trigger
++    IPIs. This might generate unacceptable trace noise when tracing low latency
++    or real time systems. The poll option forces trace-cmd to use O_NONBLOCK.
++    Traces are extracted by busy waiting, which will hog the CPUs, so only use
++    when really needed.
++
+ EXAMPLES
+ --------
+ 
+diff --git a/trace-cmd.h b/trace-cmd.h
+index 75951b5e..4cc9db2a 100644
+--- a/trace-cmd.h
++++ b/trace-cmd.h
+@@ -279,7 +279,9 @@ int tracecmd_attach_cpu_data_fd(int fd, int cpus, char * const *cpu_data_files);
+ enum {
+ 	TRACECMD_RECORD_NOSPLICE	= (1 << 0),	/* Use read instead of splice */
+ 	TRACECMD_RECORD_SNAPSHOT	= (1 << 1),	/* extract from snapshot */
+-	TRACECMD_RECORD_BLOCK		= (1 << 2),	/* Block on splice write */
++	TRACECMD_RECORD_BLOCK_SPLICE	= (1 << 2),	/* Block on splice write */
++	TRACECMD_RECORD_NOBRASS         = (1 << 3),     /* Splice directly without a brass pipe */
++	TRACECMD_RECORD_POLL            = (1 << 4),     /* Use O_NONBLOCK, poll trace buffers */
+ };
+ 
+ void tracecmd_free_recorder(struct tracecmd_recorder *recorder);
+diff --git a/trace-record.c b/trace-record.c
+index ef4c4c87..1872e3c4 100644
+--- a/trace-record.c
++++ b/trace-record.c
+@@ -2622,7 +2622,7 @@ create_recorder_instance_pipe(struct buffer_instance *instance,
+ 			      int cpu, int *brass)
+ {
+ 	struct tracecmd_recorder *recorder;
+-	unsigned flags = recorder_flags | TRACECMD_RECORD_BLOCK;
++	unsigned flags = recorder_flags | TRACECMD_RECORD_BLOCK_SPLICE;
+ 	char *path;
+ 
+ 	if (instance->name)
+@@ -4359,6 +4359,9 @@ enum {
+ 	OPT_funcstack		= 254,
+ 	OPT_date		= 255,
+ 	OPT_module		= 256,
++	OPT_nofifos		= 257,
++	OPT_cmdlines_size	= 258,
++	OPT_poll		= 259,
+ };
+ 
+ void trace_stop(int argc, char **argv)
+@@ -4601,6 +4604,7 @@ static void parse_record_options(int argc,
+ 			{"quiet", no_argument, NULL, OPT_quiet},
+ 			{"help", no_argument, NULL, '?'},
+ 			{"module", required_argument, NULL, OPT_module},
++			{"poll", no_argument, NULL, OPT_poll},
+ 			{NULL, 0, NULL, 0}
+ 		};
+ 
+@@ -4884,6 +4888,9 @@ static void parse_record_options(int argc,
+ 			ctx->instance->filter_mod = optarg;
+ 			ctx->filtered = 0;
+ 			break;
++		case OPT_poll:
++			recorder_flags |= TRACECMD_RECORD_POLL;
++			break;
+ 		case OPT_quiet:
+ 		case 'q':
+ 			quiet = 1;
+diff --git a/trace-recorder.c b/trace-recorder.c
+index 75290285..97dceccf 100644
+--- a/trace-recorder.c
++++ b/trace-recorder.c
+@@ -115,6 +115,18 @@ void tracecmd_free_recorder(struct tracecmd_recorder *recorder)
+ 	free(recorder);
+ }
+ 
++static void set_nonblock(struct tracecmd_recorder *recorder)
++{
++	long flags;
++
++	/* Do not block on reads for flushing */
++	flags = fcntl(recorder->trace_fd, F_GETFL);
++	fcntl(recorder->trace_fd, F_SETFL, flags | O_NONBLOCK);
++
++	/* Do not block on streams for write */
++	recorder->fd_flags |= 2; /* NON_BLOCK */
++}
++
+ struct tracecmd_recorder *
+ tracecmd_create_buffer_recorder_fd2(int fd, int fd2, int cpu, unsigned flags,
+ 				    const char *buffer, int maxkb)
+@@ -133,7 +145,7 @@ tracecmd_create_buffer_recorder_fd2(int fd, int fd2, int cpu, unsigned flags,
+ 
+ 	recorder->fd_flags = 1; /* SPLICE_F_MOVE */
+ 
+-	if (!(recorder->flags & TRACECMD_RECORD_BLOCK))
++	if (!(recorder->flags & TRACECMD_RECORD_BLOCK_SPLICE))
+ 		recorder->fd_flags |= 2; /* and NON_BLOCK */
+ 
+ 	/* Init to know what to free and release */
+@@ -192,6 +204,9 @@ tracecmd_create_buffer_recorder_fd2(int fd, int fd2, int cpu, unsigned flags,
+ 		recorder->pipe_size = pipe_size;
+ 	}
+ 
++	if (recorder->flags & TRACECMD_RECORD_POLL)
++		set_nonblock(recorder);
++
+ 	free(path);
+ 
+ 	return recorder;
+@@ -421,18 +436,6 @@ static long read_data(struct tracecmd_recorder *recorder)
+ 	return r;
+ }
+ 
+-static void set_nonblock(struct tracecmd_recorder *recorder)
+-{
+-	long flags;
+-
+-	/* Do not block on reads for flushing */
+-	flags = fcntl(recorder->trace_fd, F_GETFL);
+-	fcntl(recorder->trace_fd, F_SETFL, flags | O_NONBLOCK);
+-
+-	/* Do not block on streams for write */
+-	recorder->fd_flags |= 2; /* NON_BLOCK */
+-}
+-
+ long tracecmd_flush_recording(struct tracecmd_recorder *recorder)
+ {
+ 	char buf[recorder->page_size];
+diff --git a/trace-usage.c b/trace-usage.c
+index dc73d4d9..a9474ad3 100644
+--- a/trace-usage.c
++++ b/trace-usage.c
+@@ -57,6 +57,7 @@ static struct usage_help usage_help[] = {
+ 		"             (use with caution)\n"
+ 		"          --max-graph-depth limit function_graph depth\n"
+ 		"          --no-filter include trace-cmd threads in the trace\n"
++		"          --poll don't block while reading from the trace buffer\n"
+ 	},
+ 	{
+ 		"start",
+-- 
+2.31.1
+
