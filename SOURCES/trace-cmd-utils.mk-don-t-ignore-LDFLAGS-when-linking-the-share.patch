@@ -1,0 +1,28 @@
+From 31385f8933f00ddecfd4a00a578d7936186f75da Mon Sep 17 00:00:00 2001
+From: Jerome Marchand <jmarchan@redhat.com>
+Date: Thu, 11 Nov 2021 18:22:09 +0100
+Subject: [PATCH] utils.mk: don't ignore LDFLAGS when linking the shared libs
+
+do_compile_shared_library should't ignore LDFLAGS. That makes it
+difficult for packager to follow their distribution packaging
+guidelines.
+---
+ scripts/utils.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/utils.mk b/scripts/utils.mk
+index ae8c9e77..4a594a9c 100644
+--- a/scripts/utils.mk
++++ b/scripts/utils.mk
+@@ -72,7 +72,7 @@ do_build_static_lib =				\
+ 
+ do_compile_shared_library =			\
+ 	($(print_shared_lib_compile)		\
+-	$(CC) --shared $^ '-Wl,-soname,$(@F),-rpath=$$ORIGIN' -o $@ $(LIBS))
++	$(CC) --shared $^ '-Wl,-soname,$(@F),-rpath=$$ORIGIN' -o $@ $(LDFLAGS) $(LIBS))
+ 
+ do_compile_plugin_obj =				\
+ 	($(print_plugin_obj_compile)		\
+-- 
+2.31.1
+
