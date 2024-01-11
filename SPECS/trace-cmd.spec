@@ -6,7 +6,7 @@
 
 Name: trace-cmd
 Version: %{srcversion}
-Release: 9%{?dist}
+Release: 10%{?dist}
 License: GPLv2 and LGPLv2
 Summary: A user interface to Ftrace
 Requires: libtracecmd
@@ -24,6 +24,7 @@ Source2: trace-cmd.service
 Source3: 98-trace-cmd.rules
 Patch0: trace-cmd-Fix-broken-profile-command.patch
 Patch1: trace-cmd-utils.mk-don-t-ignore-LDFLAGS-when-linking-the-share.patch
+Patch2: trace-cmd-Remove-last-elements-of-local-libtracefs-a.patch
 
 BuildRequires: make
 BuildRequires: gcc
@@ -137,6 +138,9 @@ install -p -m 644 98-trace-cmd.rules %{buildroot}/%{_udevrulesdir}/
 %{_includedir}/trace-cmd
 
 %changelog
+* Fri Jul 21 2023 Jerome Marchand <jmarchan@redhat.com> - 2.9.2-10
+- Remove remaining trace of libtracefs and libtraceevent
+
 * Thu Mar 31 2022 Jerome Marchand <jmarchan@redhat.com> - 2.9.2-9
 - Add flight recorder service
 
