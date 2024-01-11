@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Kernelshark
+Comment=Analyze data output by trace-cmd
+Exec=kernelshark
+Type=Application
+Categories=Development;Profiling;
+Icon=applications-development

@@ -1,0 +1,32 @@
+From a7f654a1fa9087312e77be82574abc1fe10c2ab6 Mon Sep 17 00:00:00 2001
+From: John Kacur <jkacur@redhat.com>
+Date: Tue, 31 Jul 2018 14:53:31 +0200
+Subject: [PATCH] trace-cmd: Makefile: Consistent ELF application hardening
+ build flags
+
+These are the recommend build changes for Redhat
+
+Signed-off-by: John Kacur <jkacur@redhat.com>
+---
+ Makefile | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 62c469393a76..17eacc114450 100644
+--- a/Makefile
++++ b/Makefile
+@@ -243,9 +243,9 @@ INCLUDES = -I. -I ./include -I $(srctree)/../../include $(CONFIG_INCLUDES)
+ include $(src)/features.mk
+ 
+ # Set compile option CFLAGS if not set elsewhere
+-CFLAGS ?= -g -Wall
++CFLAGS ?= -g -Wall -fPIE -fstack-protector-strong --param=ssp-buffer-size=4 -fstack-clash-protection -fexceptions
+ CPPFLAGS ?=
+-LDFLAGS ?=
++LDFLAGS ?= -pie -Wl,-z,now
+ 
+ # Required CFLAGS
+ override CFLAGS += -D_GNU_SOURCE
+-- 
+2.14.4
+
