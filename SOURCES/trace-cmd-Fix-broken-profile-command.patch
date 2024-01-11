@@ -1,0 +1,35 @@
+From 7e12e8ba4001f51869f28770246f0ac3dbfb9999 Mon Sep 17 00:00:00 2001
+From: "Tzvetomir Stoyanov (VMware)" <tz.stoyanov@gmail.com>
+Date: Fri, 14 May 2021 10:52:41 +0300
+Subject: [PATCH] trace-cmd: Fix broken profile command
+
+Recent changes in creating trace.dat files broke the streams, used
+internaly by the trace-cmd profile command.
+
+Link: https://lore.kernel.org/linux-trace-devel/20210514075241.65418-1-tz.stoyanov@gmail.com
+
+Bugzilla: https://bugzilla.kernel.org/show_bug.cgi?id=213045
+Reported-by: Jerome Marchand  <jmarchan@redhat.com>
+Fixes: 1762536da ("trace-cmd: Have tracecmd_read_headers() specify the state to read up to")
+Signed-off-by: Tzvetomir Stoyanov (VMware) <tz.stoyanov@gmail.com>
+Signed-off-by: Steven Rostedt (VMware) <rostedt@goodmis.org>
+---
+ tracecmd/trace-stream.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tracecmd/trace-stream.c b/tracecmd/trace-stream.c
+index f503bf7..b47b208 100644
+--- a/tracecmd/trace-stream.c
++++ b/tracecmd/trace-stream.c
+@@ -59,7 +59,7 @@ trace_stream_init(struct buffer_instance *instance, int cpu, int fd, int cpus,
+ 		goto fail;
+ 	}
+ 
+-	if (tracecmd_read_headers(trace_input, 0) < 0)
++	if (tracecmd_read_headers(trace_input, TRACECMD_FILE_PRINTK) < 0)
+ 		goto fail_free_input;
+ 
+ 	if (handle_init)
+-- 
+2.31.1
+
