@@ -1,0 +1,41 @@
+From e48db64dcb0dfddb6b8f6cd8624e1e2ff2c1302c Mon Sep 17 00:00:00 2001
+From: Jerome Marchand <jmarchan@redhat.com>
+Date: Tue, 29 Oct 2024 09:01:14 +0100
+Subject: [PATCH 5/8] trace-cmd record: Prevent memory leak in setup_network()
+
+Because of the again label, msg_handle can be already allocated if we
+exit after we got a negative socket file descriptor. Free it there.
+Also unassign msg_handle->fd as to not double close sfd.
+
+Fixes a RESOURCE_LEAK error (CWE-772)
+
+Link: https://lore.kernel.org/20241029080117.625177-6-jmarchan@redhat.com
+Signed-off-by: Jerome Marchand <jmarchan@redhat.com>
+Signed-off-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+---
+ tracecmd/trace-record.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/tracecmd/trace-record.c b/tracecmd/trace-record.c
+index bdfa57b0..d78c13c2 100644
+--- a/tracecmd/trace-record.c
++++ b/tracecmd/trace-record.c
+@@ -3904,6 +3904,7 @@ static struct tracecmd_msg_handle *setup_network(struct buffer_instance *instanc
+ 
+ 	if (sfd < 0) {
+ 		free(thost);
++		tracecmd_msg_handle_close(msg_handle);
+ 		return NULL;
+ 	}
+ 
+@@ -3934,6 +3935,7 @@ static struct tracecmd_msg_handle *setup_network(struct buffer_instance *instanc
+ 		if (msg_handle->version == V1_PROTOCOL) {
+ 			/* reconnect to the server for using the v1 protocol */
+ 			close(sfd);
++			msg_handle->fd = -1;
+ 			free(host);
+ 			host = NULL;
+ 			goto again;
+-- 
+2.47.0
+

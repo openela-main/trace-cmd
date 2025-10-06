@@ -1,0 +1,36 @@
+From ea419e8e8f5e56c166b14aef26be814daebe2832 Mon Sep 17 00:00:00 2001
+From: Jerome Marchand <jmarchan@redhat.com>
+Date: Tue, 29 Oct 2024 09:01:12 +0100
+Subject: [PATCH 3/8] trace-cmd lib: Check the return value of do_lseek() in
+ trace_get_options()
+
+Check that do_lseek doesn't fail before calling malloc() with a -1
+argument.
+
+This is flagged as an overrun error (CWE-119) by static anaysis
+because of the call to read() later, but I don't imagine that malloc
+would succeed.
+
+Link: https://lore.kernel.org/20241029080117.625177-4-jmarchan@redhat.com
+Signed-off-by: Jerome Marchand <jmarchan@redhat.com>
+Signed-off-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+---
+ lib/trace-cmd/trace-output.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/lib/trace-cmd/trace-output.c b/lib/trace-cmd/trace-output.c
+index 66e11ddc..8bc9325c 100644
+--- a/lib/trace-cmd/trace-output.c
++++ b/lib/trace-cmd/trace-output.c
+@@ -2070,6 +2070,8 @@ __hidden void *trace_get_options(struct tracecmd_output *handle, size_t *len)
+ 	}
+ 
+ 	offset = do_lseek(&out_handle, 0, SEEK_CUR);
++	if (offset == (off_t)-1)
++		goto out;
+ 	buf = malloc(offset);
+ 	if (!buf)
+ 		goto out;
+-- 
+2.47.0
+

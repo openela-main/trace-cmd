@@ -1,0 +1,37 @@
+From c76f2404340e4fa3159536355a0e095631fb7920 Mon Sep 17 00:00:00 2001
+From: Jerome Marchand <jmarchan@redhat.com>
+Date: Tue, 29 Oct 2024 09:47:05 +0100
+Subject: [PATCH] trace-cmd: Prevent buffer overflow in update_pid_filters()
+
+The buffer in which the updated filter is written in
+update_pid_filters() is missing one byte to store the null character.
+
+It fixes the following error:
+$ trace-cmd start -e irq:* -e sched:* -P 1
+*** buffer overflow detected ***: terminated
+Aborted (core dumped)
+
+Fixes: 5502bcef0f962 ("trace-cmd: Handle filtered PIDs per ftarce instance")
+Link: https://lore.kernel.org/20241029084705.629605-1-jmarchan@redhat.com
+Signed-off-by: Jerome Marchand <jmarchan@redhat.com>
+Signed-off-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+---
+ tracecmd/trace-record.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tracecmd/trace-record.c b/tracecmd/trace-record.c
+index 6e9b4535..c7c43e17 100644
+--- a/tracecmd/trace-record.c
++++ b/tracecmd/trace-record.c
+@@ -2852,7 +2852,7 @@ static void update_pid_filters(struct buffer_instance *instance)
+ 	if (fd < 0)
+ 		die("Failed to access set_event_pid");
+ 
+-	len = instance->len_filter_pids + instance->nr_filter_pids;
++	len = instance->len_filter_pids + instance->nr_filter_pids + 1;
+ 	filter = malloc(len);
+ 	if (!filter)
+ 		die("Failed to allocate pid filter");
+-- 
+2.47.1
+

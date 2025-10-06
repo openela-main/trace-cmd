@@ -1,0 +1,34 @@
+From 7a0d3baf2ab09f7a729e4de592b784e307caa70f Mon Sep 17 00:00:00 2001
+From: Jerome Marchand <jmarchan@redhat.com>
+Date: Tue, 29 Oct 2024 09:01:13 +0100
+Subject: [PATCH 4/8] trace-cmd dump: Prevent buffer overrun in dump_clock()
+
+The clock isn't big enough to hold the string with the null
+terminating character. Worse, clock[size], which is out of range, is
+set to 0. Allocate a big enough buffer.
+
+Fixes an OVERRUN error (CWE-119)
+
+Link: https://lore.kernel.org/20241029080117.625177-5-jmarchan@redhat.com
+Signed-off-by: Jerome Marchand <jmarchan@redhat.com>
+Signed-off-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+---
+ tracecmd/trace-dump.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tracecmd/trace-dump.c b/tracecmd/trace-dump.c
+index 11c1baf1..0a21356e 100644
+--- a/tracecmd/trace-dump.c
++++ b/tracecmd/trace-dump.c
+@@ -961,7 +961,7 @@ static void dump_clock(int fd)
+ 	}
+ 	if (read_file_number(fd, &size, 8))
+ 		die("cannot read clock size");
+-	clock = calloc(1, size);
++	clock = calloc(1, size + 1);
+ 	if (!clock)
+ 		die("cannot allocate clock %lld bytes", size);
+ 
+-- 
+2.47.0
+

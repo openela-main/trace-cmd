@@ -1,0 +1,39 @@
+From 75d8bba90d8b4cbe1a80381f1dfbd80cbb0fbd60 Mon Sep 17 00:00:00 2001
+From: Jerome Marchand <jmarchan@redhat.com>
+Date: Tue, 29 Oct 2024 09:01:17 +0100
+Subject: [PATCH 8/8] trace-cmd record: Check the length of the protocol
+ version received
+
+In check_protocol_version we compare the protocol version string with
+the expected one ("V3") with memcmp(). The received string could be
+longer than the constant string used for the comparison. That could
+lead to out of range access.
+
+Use the known length of the fixed "V3" string for the comparison and
+check that the received protocol version is not too short.
+
+Fixes a OVERRUN error (CWE-119)
+
+Link: https://lore.kernel.org/20241029080117.625177-9-jmarchan@redhat.com
+Signed-off-by: Jerome Marchand <jmarchan@redhat.com>
+Signed-off-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+---
+ tracecmd/trace-record.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tracecmd/trace-record.c b/tracecmd/trace-record.c
+index d78c13c2..febf8578 100644
+--- a/tracecmd/trace-record.c
++++ b/tracecmd/trace-record.c
+@@ -3811,7 +3811,7 @@ static void check_protocol_version(struct tracecmd_msg_handle *msg_handle)
+ 		msg_handle->version = V1_PROTOCOL;
+ 		tracecmd_plog("Use the v1 protocol\n");
+ 	} else {
+-		if (memcmp(buf, "V3", n) != 0)
++		if (n < 3 || memcmp(buf, "V3", 3) != 0)
+ 			die("Cannot handle the protocol %s", buf);
+ 		/* OK, let's use v3 protocol */
+ 		write(fd, V3_MAGIC, sizeof(V3_MAGIC));
+-- 
+2.47.0
+

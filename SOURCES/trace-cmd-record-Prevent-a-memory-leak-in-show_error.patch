@@ -1,0 +1,38 @@
+From 8e7de34bca5fdfcd8276116db4dd02308de0e194 Mon Sep 17 00:00:00 2001
+From: Jerome Marchand <jmarchan@redhat.com>
+Date: Tue, 29 Oct 2024 09:01:11 +0100
+Subject: [PATCH 2/8] trace-cmd record: Prevent a memory leak in show_error()
+
+In show_error() the pointer p is used for several functions. At first,
+it contain a substring of path.
+
+Then it is replaced by either an allocated string containing the path
+to the error log file or the result of read_path(), neither of which
+are freed when exiting.
+
+Free p in both case in the exit path.
+
+Fixes a RESOURCE_LEAK error (CWE-772)
+
+Link: https://lore.kernel.org/20241029080117.625177-3-jmarchan@redhat.com
+Signed-off-by: Jerome Marchand <jmarchan@redhat.com>
+Signed-off-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+---
+ tracecmd/trace-record.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tracecmd/trace-record.c b/tracecmd/trace-record.c
+index 0063d528..bdfa57b0 100644
+--- a/tracecmd/trace-record.c
++++ b/tracecmd/trace-record.c
+@@ -2374,6 +2374,7 @@ static void show_error(const char *file, const char *type)
+ 
+  out:
+ 	printf("Failed %s of %s\n", type, file);
++	free(p);
+ 	free(path);
+ 	return;
+ }
+-- 
+2.47.0
+

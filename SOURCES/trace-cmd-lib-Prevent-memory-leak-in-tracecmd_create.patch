@@ -1,0 +1,33 @@
+From cbe42ab193ac866e9a6644b8509ab341a8aa474d Mon Sep 17 00:00:00 2001
+From: Jerome Marchand <jmarchan@redhat.com>
+Date: Tue, 29 Oct 2024 09:01:15 +0100
+Subject: [PATCH 6/8] trace-cmd lib: Prevent memory leak in
+ tracecmd_create_event_hook()
+
+Free hook and hook->str in the error path.
+
+Fixes a RESOURCE_LEAK error (CWE-772)
+
+Link: https://lore.kernel.org/20241029080117.625177-7-jmarchan@redhat.com
+Signed-off-by: Jerome Marchand <jmarchan@redhat.com>
+Signed-off-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+---
+ lib/trace-cmd/trace-hooks.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/lib/trace-cmd/trace-hooks.c b/lib/trace-cmd/trace-hooks.c
+index a58b5356..aa12f6e9 100644
+--- a/lib/trace-cmd/trace-hooks.c
++++ b/lib/trace-cmd/trace-hooks.c
+@@ -151,6 +151,8 @@ struct hook_list *tracecmd_create_event_hook(const char *arg)
+ 
+ invalid_tok:
+ 	tracecmd_warning("Invalid hook format '%s'", arg);
++	free(hook->str);
++	free(hook);
+ 	return NULL;
+ }
+ 
+-- 
+2.47.0
+
