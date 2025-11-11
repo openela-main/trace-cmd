@@ -1,0 +1,77 @@
+From e81cd4e30c368867e424231c160c5392d41425f9 Mon Sep 17 00:00:00 2001
+From: Jerome Marchand <jmarchan@redhat.com>
+Date: Wed, 2 Apr 2025 17:07:51 +0200
+Subject: [PATCH] trace-cmd lib: Copy message buffer content in
+ get_trace_req_args()
+
+The description of  tracecmd_msg_recv_trace_req() calls for freeing
+argv[0] after a successful call. However the address pointed by
+argv[0] which is set in get_trace_req_args() points to msg.buf, which
+is then freed. This cause use-after-free errors, in particular when
+the trace-agent free argv[0] as recommended.
+
+Fix this by copying the content of the message buffer to argv[0] in
+get_trace_req_args().
+
+Fixes the following error. On the guest:
+$ trace-cmd agent
+listening on @3:823
+free(): invalid pointer
+
+On the host:
+$ trace-cmd record  -A @3:823 -p function echo nothing
+Negotiated kvm time sync protocol with guest unnamed-0
+reading client -110 (Unknown error -110)
+nothing
+  cannot create output handle
+
+Link: https://lore.kernel.org/20250402150751.335229-1-jmarchan@redhat.com
+Fixes: 08b9d5076455c ("trace-cmd: Basic infrastructure for host - guest timestamp synchronization")
+Signed-off-by: Jerome Marchand <jmarchan@redhat.com>
+Signed-off-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+---
+ lib/trace-cmd/trace-msg.c | 14 +++++++++++---
+ 1 file changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/lib/trace-cmd/trace-msg.c b/lib/trace-cmd/trace-msg.c
+index 5739c171..8d15ce07 100644
+--- a/lib/trace-cmd/trace-msg.c
++++ b/lib/trace-cmd/trace-msg.c
+@@ -1247,7 +1247,7 @@ static int get_trace_req_protos(char *buf, int length,
+ static int get_trace_req_args(char *buf, int length, int *argc, char ***argv)
+ {
+ 	unsigned int nr_args;
+-	char *p, *buf_end;
++	char *p = NULL, *buf_end;
+ 	char **args = NULL;
+ 	int ret;
+ 	int i;
+@@ -1267,8 +1267,15 @@ static int get_trace_req_args(char *buf, int length, int *argc, char ***argv)
+ 		goto out;
+ 	}
+ 
+-	buf_end = buf + length;
+-	for (i = 0, p = buf; i < nr_args; i++, p++) {
++	p = malloc(length);
++	if (!p) {
++		ret = -ENOMEM;
++		goto out;
++	}
++	memcpy(p, buf, length);
++
++	buf_end = p + length;
++	for (i = 0; i < nr_args; i++, p++) {
+ 		if (p >= buf_end) {
+ 			ret = -EINVAL;
+ 			goto out;
+@@ -1282,6 +1289,7 @@ static int get_trace_req_args(char *buf, int length, int *argc, char ***argv)
+ 	return 0;
+ 
+ out:
++	free(p);
+ 	free(args);
+ 	return ret;
+ 
+-- 
+2.49.0
+

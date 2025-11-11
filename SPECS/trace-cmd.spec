@@ -6,7 +6,7 @@
 
 Name: trace-cmd
 Version: %{srcversion}
-Release: 2%{?dist}
+Release: 3%{?dist}
 License: LGPL-2.1-only AND LGPL-2.1-or-later AND GPL-2.0-only AND GPL-2.0-or-later
 Summary: A user interface to Ftrace
 
@@ -30,6 +30,7 @@ Patch5: trace-cmd-lib-Prevent-memory-leak-in-tracecmd_create.patch
 Patch6: trace-cmd-mem-Prevent-a-memory-leak-in-trace_mem.patch
 Patch7: trace-cmd-record-Check-the-length-of-the-protocol-ve.patch
 Patch8: trace-cmd-Prevent-buffer-overflow-in-update_pid_filt.patch
+Patch9: trace-cmd-lib-Copy-message-buffer-content-in-get_tra.patch
 
 BuildRequires: make
 BuildRequires: gcc
@@ -111,6 +112,9 @@ rm -rf %{buildroot}/%{_mandir}/man3/*
 %{_libdir}/%{name}/python/
 
 %changelog
+* Thu Apr 24 2025 Jerome Marchand <jmarchan@redhat.com> - 3.3.1-3
+- Fix trace messages (RHEL-80321)
+
 * Wed Jan 15 2025 Jerome Marchand <jmarchan@redhat.com> - 3.3.1-2
 - Prevent buffer overflow in update_pid_filters() (RHEL-56731)
 
