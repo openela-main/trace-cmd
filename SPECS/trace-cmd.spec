@@ -2,11 +2,12 @@
 #%%global git_commit trace-cmd-v2.6.2
 #%%global git_commit 57371aaa2f469d0ba15fd85276deca7bfdd7ce36
 
-%global srcversion 2.9.2
+%global srcversion 3.3.1
+%global libversion 1.5.2
 
 Name: trace-cmd
 Version: %{srcversion}
-Release: 10%{?dist}
+Release: 2%{?dist}
 License: GPLv2 and LGPLv2
 Summary: A user interface to Ftrace
 Requires: libtracecmd
@@ -22,9 +23,6 @@ Source0: https://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git/snapshot/t
 Source1: trace-cmd.conf
 Source2: trace-cmd.service
 Source3: 98-trace-cmd.rules
-Patch0: trace-cmd-Fix-broken-profile-command.patch
-Patch1: trace-cmd-utils.mk-don-t-ignore-LDFLAGS-when-linking-the-share.patch
-Patch2: trace-cmd-Remove-last-elements-of-local-libtracefs-a.patch
 
 BuildRequires: make
 BuildRequires: gcc
@@ -60,14 +58,14 @@ Python plugin support for trace-cmd
 
 %package -n libtracecmd
 Summary: Libraries of trace-cmd
-Version: 0
+Version: %{libversion}
 
 %description -n libtracecmd
 The libtracecmd library
 
 %package -n libtracecmd-devel
 Summary: Development files for libtracecmd
-Version: 0
+Version: %{libversion}
 Requires: libtracecmd%{_isa} = %{version}-%{release}
 
 %description -n libtracecmd-devel
@@ -92,7 +90,7 @@ make V=1 MANPAGE_DOCBOOK_XSL=$MANPAGE_DOCBOOK_XSL \
 for i in python/*.py ; do 
     sed -i 's/env python2/python3/g' $i
 done
-chrpath --delete tracecmd/trace-cmd lib/trace-cmd/libtracecmd.so.0.0.1
+chrpath --delete tracecmd/trace-cmd lib/trace-cmd/libtracecmd.so.%{libversion}
 
 %install
 make V=1 libdir=%{_libdir} prefix=%{_prefix} DESTDIR=%{buildroot}/ \
@@ -115,6 +113,7 @@ install -p -m 644 98-trace-cmd.rules %{buildroot}/%{_udevrulesdir}/
 %{_bindir}/trace-cmd
 %{_mandir}/man1/%{name}*
 %{_mandir}/man5/%{name}*
+%{_docdir}/trace-cmd/trace-cmd*.html
 %{_sysconfdir}/bash_completion.d/trace-cmd.bash
 %{_sysconfdir}/sysconfig/trace-cmd.conf
 %{_unitdir}/trace-cmd.service
@@ -126,8 +125,7 @@ install -p -m 644 98-trace-cmd.rules %{buildroot}/%{_udevrulesdir}/
 
 %files -n libtracecmd
 %doc COPYING COPYING.LIB README
-%{_libdir}/libtracecmd.so.0
-%{_libdir}/libtracecmd.so.0.0.1
+%{_libdir}/libtracecmd.so.*
 %{_docdir}/libtracecmd-doc
 %{_mandir}/man3/libtracecmd*
 %{_mandir}/man3/tracecmd*
@@ -138,6 +136,12 @@ install -p -m 644 98-trace-cmd.rules %{buildroot}/%{_udevrulesdir}/
 %{_includedir}/trace-cmd
 
 %changelog
+* Tue Mar 11 2025 Jerome Marchand <jmarchan@redhat.com> - 3.3.1-2
+- Rebuild without side-tags (RHEL-76155)
+
+* Tue Feb 25 2025 Jerome Marchand <jmarchan@redhat.com> - 3.3.1-1
+- Rebase to version 3.3.1 (RHEL-76155)
+
 * Fri Jul 21 2023 Jerome Marchand <jmarchan@redhat.com> - 2.9.2-10
 - Remove remaining trace of libtracefs and libtraceevent
 
