@@ -7,7 +7,7 @@
 
 Name: trace-cmd
 Version: %{srcversion}
-Release: 2%{?dist}
+Release: 3%{?dist}
 License: GPLv2 and LGPLv2
 Summary: A user interface to Ftrace
 Requires: libtracecmd
@@ -23,6 +23,7 @@ Source0: https://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git/snapshot/t
 Source1: trace-cmd.conf
 Source2: trace-cmd.service
 Source3: 98-trace-cmd.rules
+Patch0:  trace-cmd-lib-Copy-message-buffer-content-in-get_tra.patch
 
 BuildRequires: make
 BuildRequires: gcc
@@ -136,6 +137,9 @@ install -p -m 644 98-trace-cmd.rules %{buildroot}/%{_udevrulesdir}/
 %{_includedir}/trace-cmd
 
 %changelog
+* Wed Feb 04 2026 Jerome Marchand <jmarchan@redhat.com> - 3.3.1-3
+- Fix trace messages (RHEL-86597)
+
 * Tue Mar 11 2025 Jerome Marchand <jmarchan@redhat.com> - 3.3.1-2
 - Rebuild without side-tags (RHEL-76155)
 
